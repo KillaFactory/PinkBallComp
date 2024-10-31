@@ -1,0 +1,100 @@
+workflows:
+  unity-android-workflow:
+    name: Unity Android Workflow
+    max_build_duration: 120
+    environment:
+      android_signing:
+        - com.aramaghazaryan.pinkballcompetition
+      groups:
+        - unity_credentials
+      vars:
+        BUILD_SCRIPT_AAB: AndroidAAB 
+        ANDROID_NDK_ROOT: $ANDROID_NDK_HOME
+      unity: 2022.3.19f1
+    scripts:
+      - name: Activate Unity license
+        script: | 
+          $UNITY_HOME/Contents/MacOS/Unity -batchmode -quit -logFile \
+          -serial ${UNITY_SERIAL?} \
+          -username ${UNITY_EMAIL} \
+          -password ${UNITY_PASSWORD} \
+      - name: Build AAB
+        script: |
+          $UNITY_HOME/Contents/MacOS/Unity -batchmode \
+          -quit \
+          -logFile \
+          -projectPath . \
+          -executeMethod Build.$BUILD_SCRIPT_AAB \
+          -nographics
+    artifacts:
+      - android/*.aab
+    publishing:
+      slack:
+        channel: '#builds'
+        notify_on_build_start: true
+        notify:
+          success: true
+          failure: true
+
+  unity-ios-workflow:
+    name: Unity iOS Workflow
+    max_build_duration: 120
+    integrations:
+      app_store_connect: Pink Ball Competition
+    environment:
+      ios_signing:
+        distribution_type: app_store
+        bundle_identifier: com.aramaghazaryan.pinkballcompetition
+      groups:
+        - unity_credentials
+      vars:
+        UNITY_IOS_DIR: ios
+        XCODE_SCHEME: "Unity-iPhone"
+        XCODE_PROJECT: "Unity-iPhone.xcodeproj"
+        BUNDLE_ID: "com.aramaghazaryan.pinkballcompetition" 
+        APP_STORE_APPLE_ID: 6736426870 #app store application id
+      unity: 2022.3.19f1
+      cocoapods: default
+    scripts:
+      - name: Activate Unity license
+        script: | 
+          $UNITY_HOME/Contents/MacOS/Unity -batchmode -quit -logFile \
+            -serial ${UNITY_SERIAL} \
+            -username ${UNITY_EMAIL} \
+            -password ${UNITY_PASSWORD}
+      - name: Generate the Xcode project from Unity
+        script: | 
+          $UNITY_HOME/Contents/MacOS/Unity -batchmode \
+            -quit \
+            -logFile \
+            -projectPath . \
+            -executeMethod Build.BuildIos \
+            -nographics
+      - name: Set up code signing settings on Xcode project
+        script: | 
+          xcode-project use-profiles
+      - name: Build the project
+        script: | 
+          xcode-project build-ipa \
+            --project "$UNITY_IOS_DIR/$XCODE_PROJECT" \
+            --scheme "$XCODE_SCHEME"
+    artifacts:
+      - build/ios/ipa/*.ipa
+      - $HOME/Library/Developer/Xcode/DerivedData/**/Build/**/*.dSYM
+    publishing:
+      slack:
+        channel: '#builds'
+        notify_on_build_start: true
+        notify:
+          success: true
+          failure: true
+      scripts:
+        - name: Deactivate Unity License
+          script: | 
+            /Applications/Unity\ Hub.app/Contents/Frameworks/UnityLicensingClient_V1.app/Contents/MacOS/Unity.Licensing.Client \
+            --return-ulf \
+            --username ${UNITY_EMAIL} \
+            --password ${UNITY_PASSWORD}
+      app_store_connect:
+        auth: integration 
+        submit_to_testflight: true 
